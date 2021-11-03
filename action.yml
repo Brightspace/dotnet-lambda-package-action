@@ -1,0 +1,62 @@
+name: 'dotnet lambda package'
+inputs:
+
+  configuration:
+    default: Release
+    description: The configuration to build with, for example Release or Debug.
+    required: true
+
+  project-location:
+    description: The location of the project.
+    required: true
+
+  output-package:
+    description: The zip file that will be created with compiled and packaged Lambda function.
+    required: true
+
+  timestamp:
+    default: "2000-01-01T01:00:00Z"
+    description: The timestamp to apply to files within the package.
+    required: true
+
+runs:
+  using: composite
+  steps:
+
+    # Generate temp files
+    - id: temp
+      run: |
+        echo "::set-output name=file::$(mktemp)"
+        echo "::set-output name=directory::$(mktemp --directory)"
+      shell: bash
+
+    # Use Amazon.Lambda.Tools dotnet tool to package the zip file
+    - run: |
+        dotnet lambda package \
+            --configuration "${{ inputs.configuration }}" \
+            --disable-interactive true \
+            --msbuild-parameters "/p:Deterministic=true" \
+            --output-package "${{ steps.temp.outputs.file }}" \
+            --project-location "${{ inputs.project-location }}" \
+            --package-type zip
+      shell: bash
+
+    # Un-pack the generated zip file
+    - run: 7z x "${{ steps.temp.outputs.file }}" "-o${{ steps.temp.outputs.directory }}" -bb -bd -y
+      shell: bash
+
+    # Normalize timestamps
+    - run: find . -exec touch -d "${{ inputs.timestamp }}" {} +
+      shell: bash
+      working-directory: ${{ steps.temp.outputs.directory }}
+
+    # Re-pack the zip
+    - run: 7z a "${{ inputs.output-package }}" -bb -bd -mmt=off -mtc=off -r *
+      shell: bash
+      working-directory: ${{ steps.temp.outputs.directory }}
+
+    # Clean up temp files
+    - run: |
+        rm "${{ steps.temp.outputs.file }}"
+        rm -fr "${{ steps.temp.outputs.directory }}"
+      shell: bash
