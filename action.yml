@@ -26,8 +26,8 @@ runs:
     # Generate temp files
     - id: temp
       run: |
-        echo "::set-output name=file::$(mktemp)"
-        echo "::set-output name=directory::$(mktemp --directory)"
+        echo "file=$(mktemp)" >> $GITHUB_OUTPUT
+        echo "directory=$(mktemp --directory)" >> $GITHUB_OUTPUT
       shell: bash
 
     # Use Amazon.Lambda.Tools dotnet tool to package the zip file
